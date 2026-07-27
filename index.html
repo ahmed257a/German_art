@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyRecallApp - German Active Recall Trainer</title>
+  
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top App Header -->
+  <header class="app-header">
+    <div class="brand-container">
+      <div class="brand-logo">R</div>
+      <div class="brand-title">MyRecallApp <span style="font-size:0.8rem; font-weight:400; color:var(--text-secondary);">German</span></div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button id="tab-btn-training" class="nav-tab active">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Training Setup
+      </button>
+      <button id="tab-btn-history" class="nav-tab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Session History Log
+      </button>
+    </nav>
+
+    <div class="storage-status-bar">
+      <span id="storage-status-text" class="status-badge status-disconnected">
+        Offline Local Mode
+      </span>
+      <button id="btn-connect-storage" class="btn btn-secondary" style="padding: 6px 14px; font-size:0.85rem;">
+        Connect user_progress.json
+      </button>
+      <button id="btn-reset-progress" class="btn btn-danger" style="padding: 6px 14px; font-size:0.85rem;" title="Reset all pointers, words retention stats, and session history">
+        Reset All Progress
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="app-container">
+
+    <!-- ==========================================
+         VIEW 1: SETUP VIEW
+         ========================================== -->
+    <section id="view-setup" class="view-panel">
+      <div class="setup-card">
+        <h1 class="setup-title">Vocabulary Training Setup</h1>
+        <p class="setup-subtitle">Configure your German active recall flashcard session.</p>
+        
+        <div id="pointer-banner" class="pointer-banner">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span id="pointer-banner-text">Loading dataset position...</span>
+        </div>
+
+        <div class="setup-grid">
+          <!-- Mode -->
+          <div class="form-group">
+            <label for="select-mode">Session Mode</label>
+            <select id="select-mode" class="form-control">
+              <option value="new" selected>New Words (Sequential)</option>
+              <option value="revision">Revision (Spaced Retention)</option>
+            </select>
+          </div>
+
+          <!-- CEFR Level -->
+          <div class="form-group">
+            <label for="select-level">CEFR Level</label>
+            <select id="select-level" class="form-control">
+              <option value="A1" selected>A1 (Beginner)</option>
+              <option value="A2">A2 (Elementary)</option>
+              <option value="B1">B1 (Intermediate)</option>
+              <option value="B2">B2 (Upper Intermediate)</option>
+              <option value="C1">C1 (Advanced)</option>
+            </select>
+          </div>
+
+          <!-- Part of Speech -->
+          <div class="form-group">
+            <label for="select-pos">Part of Speech</label>
+            <select id="select-pos" class="form-control">
+              <option value="noun" selected>Nouns (Substantive)</option>
+              <option value="verb">Verbs (Verben)</option>
+              <option value="adjective">Adjectives (Adjektive)</option>
+              <option value="adverb">Adverbs (Adverbien)</option>
+            </select>
+          </div>
+
+          <!-- Batch Size N -->
+          <div class="form-group">
+            <label for="input-batch-size">Batch Size (N)</label>
+            <input type="number" id="input-batch-size" class="form-control" value="10" min="1" max="50">
+          </div>
+
+          <!-- Preview Timer S -->
+          <div class="form-group">
+            <label for="input-preview-time">Preview Sec (S)</label>
+            <input type="number" id="input-preview-time" class="form-control" value="3" min="1" max="30">
+          </div>
+
+          <!-- Recall Timer M -->
+          <div class="form-group">
+            <label for="input-recall-time">Recall Sec (M)</label>
+            <input type="number" id="input-recall-time" class="form-control" value="10" min="2" max="60">
+          </div>
+        </div>
+
+        <button id="btn-start-session" class="btn btn-full">
+          Start Training Session
+        </button>
+      </div>
+
+      <!-- Lifetime Stats Overview Box -->
+      <div class="stats-card">
+        <h2 class="stats-card-title">Lifetime Retention Overview</h2>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div id="stat-total-sessions" class="stat-num">0</div>
+            <div class="stat-lbl">Completed Sessions</div>
+          </div>
+          <div class="stat-item">
+            <div id="stat-total-learnt" class="stat-num">0</div>
+            <div class="stat-lbl">Words Mastered</div>
+          </div>
+          <div class="stat-item">
+            <div id="stat-overall-accuracy" class="stat-num">0%</div>
+            <div class="stat-lbl">Overall Accuracy</div>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <h3 style="font-size:0.95rem; font-weight:600; color:var(--text-secondary);">Recent Training Logs</h3>
+          <button id="btn-view-all-history" class="btn btn-secondary" style="padding:4px 10px; font-size:0.8rem;">View Full Log →</button>
+        </div>
+        <div id="recent-sessions-list" class="recent-sessions-list">
+          <div class="empty-state">No recorded sessions yet.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 2: PHASE 1 (PASSIVE LEARNING)
+         ========================================== -->
+    <section id="view-phase1" class="view-panel hidden">
+      <div class="flashcard-container">
+        
+        <!-- Header & Radial Timer -->
+        <div class="progress-header">
+          <span id="p1-progress-text" class="progress-text">Word 1 of 10</span>
+          
+          <div class="progress-bar-outer">
+            <div id="p1-progress-bar-inner" class="progress-bar-inner"></div>
+          </div>
+
+          <div class="timer-widget">
+            <svg class="timer-svg" viewBox="0 0 60 60">
+              <circle class="timer-circle-bg" cx="30" cy="30" r="24" stroke-width="4" fill="none" />
+              <circle id="p1-timer-circle-svg" class="timer-circle-fg" cx="30" cy="30" r="24" stroke-width="4" fill="none" />
+            </svg>
+            <span id="p1-timer-text" class="timer-text-overlay">3s</span>
+          </div>
+        </div>
+
+        <!-- Flashcard Content -->
+        <div id="p1-card-level-pos" class="card-tag">A1 • NOUN</div>
+        <div id="p1-card-word" class="p1-target-word">das Buch</div>
+        <div id="p1-card-translation" class="p1-translation">the book</div>
+
+        <div class="example-box">
+          <div id="p1-card-native-ex" class="example-native">Ich lese ein Buch.</div>
+          <div id="p1-card-english-ex" class="example-english">I am reading a book.</div>
+        </div>
+
+        <!-- Controls -->
+        <div class="p1-controls">
+          <button id="btn-p1-prev" class="btn btn-secondary">Prev</button>
+          <button id="btn-p1-pause" class="btn btn-secondary">Pause</button>
+          <button id="btn-p1-next" class="btn btn-secondary">Next</button>
+          <button id="btn-p1-skip-recall" class="btn" style="margin-left:auto;">Skip to Active Recall →</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 3: PHASE 2 (ACTIVE RECALL - NO EXAMPLES)
+         ========================================== -->
+    <section id="view-phase2" class="view-panel hidden">
+      <div class="flashcard-container" style="min-height:360px; justify-content:center;">
+        
+        <!-- Header & Radial Timer -->
+        <div class="progress-header">
+          <span id="p2-progress-text" class="progress-text">Recall 1 of 10</span>
+          
+          <div class="progress-bar-outer">
+            <div id="p2-progress-bar-inner" class="progress-bar-inner"></div>
+          </div>
+
+          <div class="timer-widget">
+            <svg class="timer-svg" viewBox="0 0 60 60">
+              <circle class="timer-circle-bg" cx="30" cy="30" r="24" stroke-width="4" fill="none" />
+              <circle id="p2-timer-circle-svg" class="timer-circle-fg" cx="30" cy="30" r="24" stroke-width="4" fill="none" style="stroke: #8b5cf6;" />
+            </svg>
+            <span id="p2-timer-text" class="timer-text-overlay">10s</span>
+          </div>
+        </div>
+
+        <!-- Prompt Content (Clean Prompt Only - No Examples) -->
+        <div class="card-tag">Translate to German</div>
+        <div id="p2-english-prompt" class="p2-prompt-word">the book</div>
+
+        <!-- Input Field & Submit -->
+        <div class="input-container" style="margin-top:24px;">
+          <input type="text" id="p2-input" class="p2-input-field" placeholder="Type German answer..." autocomplete="off" spellcheck="false">
+          <button id="btn-p2-submit" class="btn">Submit</button>
+        </div>
+
+        <!-- Feedback Banner -->
+        <div id="p2-feedback-banner" class="feedback-banner hidden">
+          <!-- Rendered dynamically -->
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 4: SESSION SUMMARY
+         ========================================== -->
+    <section id="view-summary" class="view-panel hidden">
+      <div class="summary-card">
+        <div class="summary-header">
+          <div>
+            <h1 style="font-size:1.6rem; font-weight:700;">Session Complete!</h1>
+            <p style="color:var(--text-secondary); font-size:0.9rem;">Your performance has been saved to user_progress.json.</p>
+          </div>
+          <div id="summary-score-badge" class="score-badge score-high">
+            Great Job!
+          </div>
+        </div>
+
+        <div class="summary-metrics-grid">
+          <div class="metric-box">
+            <div id="summary-accuracy-val" class="metric-value">100%</div>
+            <div class="metric-label">Accuracy Rate</div>
+          </div>
+          <div class="metric-box">
+            <div id="summary-avg-speed-val" class="metric-value">2.4 s/word</div>
+            <div class="metric-label">Avg Recall Speed</div>
+          </div>
+          <div class="metric-box">
+            <div id="summary-total-words-val" class="metric-value">10</div>
+            <div class="metric-label">Words Trained</div>
+          </div>
+        </div>
+
+        <!-- Itemized Table -->
+        <h3 style="font-size:1rem; font-weight:600; color:var(--text-secondary); margin-bottom:12px;">Detailed Word Breakdown</h3>
+        <div class="results-table-container">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Target Word</th>
+                <th>Your Input</th>
+                <th>Result</th>
+                <th>Speed</th>
+              </tr>
+            </thead>
+            <tbody id="summary-table-body">
+              <!-- Dynamically rendered -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="summary-actions">
+          <button id="btn-summary-restart" class="btn btn-secondary">Repeat Session</button>
+          <button id="btn-summary-setup" class="btn">Return to Setup</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 5: FULL SESSION HISTORY LOG TAB
+         ========================================== -->
+    <section id="view-history" class="view-panel hidden">
+      <div class="summary-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+          <div>
+            <h1 style="font-size:1.6rem; font-weight:700;">All Historical Training Logs</h1>
+            <p style="color:var(--text-secondary); font-size:0.9rem;">Permanent unpruned session history stored in user_progress.json.</p>
+          </div>
+          <button id="btn-refresh-history" class="btn btn-secondary" style="padding:8px 16px;">Refresh Log</button>
+        </div>
+
+        <div class="results-table-container">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Date & Time</th>
+                <th>Level & Category</th>
+                <th>Mode</th>
+                <th>Words (N)</th>
+                <th>Accuracy</th>
+                <th>Avg Speed</th>
+              </tr>
+            </thead>
+            <tbody id="history-full-table-body">
+              <!-- Dynamically rendered full history -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

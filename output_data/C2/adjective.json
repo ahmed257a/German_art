@@ -1,0 +1,38 @@
+[
+  {
+    "word": "anal",
+    "useful_for_flashcard": true,
+    "cefr_level": "C2",
+    "english_translation": "anal",
+    "romanization": "anal",
+    "example_sentence_native": "Die Studie untersuchte die analen Drüsen.",
+    "example_sentence_english": "The study examined the anal glands.",
+    "gender": "",
+    "is_separable_verb": false,
+    "separable_prefix": "",
+    "base_verb": "",
+    "capitalization_sensitive": false,
+    "pos": "adjective",
+    "word_frequency": 4962,
+    "article": "",
+    "target": "anal"
+  },
+  {
+    "word": "apostolisch",
+    "useful_for_flashcard": true,
+    "cefr_level": "C2",
+    "english_translation": "apostolic",
+    "romanization": "apostolisch",
+    "example_sentence_native": "Er sprach über die apostolische Sukzession.",
+    "example_sentence_english": "He spoke about the apostolic succession.",
+    "gender": "",
+    "is_separable_verb": false,
+    "separable_prefix": "",
+    "base_verb": "",
+    "capitalization_sensitive": false,
+    "pos": "adj",
+    "word_frequency": 18297,
+    "article": "",
+    "target": "apostolisch"
+  }
+]

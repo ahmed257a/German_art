@@ -1,0 +1,38 @@
+[
+  {
+    "word": "masturbieren",
+    "useful_for_flashcard": true,
+    "cefr_level": "C2",
+    "english_translation": "to masturbate",
+    "romanization": "masturbieren",
+    "example_sentence_native": "Er lernte, wie man masturbiert.",
+    "example_sentence_english": "He learned how to masturbate.",
+    "gender": "",
+    "is_separable_verb": false,
+    "separable_prefix": "",
+    "base_verb": "",
+    "capitalization_sensitive": false,
+    "pos": "verb",
+    "word_frequency": 13302,
+    "article": "",
+    "target": "masturbieren"
+  },
+  {
+    "word": "rittern",
+    "useful_for_flashcard": true,
+    "cefr_level": "C2",
+    "english_translation": "to joust;to knight",
+    "romanization": "rittern",
+    "example_sentence_native": "Im Mittelalter pflegten Ritter zu rittern.",
+    "example_sentence_english": "In the Middle Ages, knights used to joust.",
+    "gender": "",
+    "is_separable_verb": false,
+    "separable_prefix": "",
+    "base_verb": "",
+    "capitalization_sensitive": false,
+    "pos": "verb",
+    "word_frequency": 23516,
+    "article": "",
+    "target": "rittern"
+  }
+]

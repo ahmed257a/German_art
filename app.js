@@ -26,7 +26,8 @@ const state = {
     pos: 'noun',         // 'noun' | 'verb' | 'adjective' | 'adverb'
     batchSize: 10,       // N
     previewTimeS: 3,     // S seconds per word
-    recallTimeM: 10      // M seconds per word
+    recallTimeM: 10,     // M seconds per word
+    autoPlayAudio: true  // Auto-play German TTS pronunciation
   },
   
   // Active Session Data
@@ -44,13 +45,15 @@ const state = {
 
 // UI Elements Cache
 let elements = {};
+let germanVoice = null;
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', async () => {
   cacheElements();
   bindEvents();
+  initTTSVoices();
   
-  // Load initial progress data (from localStorage fallback or empty)
+  // Load initial progress data
   state.progressData = await loadProgress();
   updateStorageStatusUI();
   updatePointerBannerUI();
@@ -74,6 +77,13 @@ function cacheElements() {
     storageStatusText: document.getElementById('storage-status-text'),
     pointerBannerText: document.getElementById('pointer-banner-text'),
     
+    // Audio Controls
+    btnHeaderAudioToggle: document.getElementById('btn-header-audio-toggle'),
+    audioToggleIcon: document.getElementById('audio-toggle-icon'),
+    audioToggleText: document.getElementById('audio-toggle-text'),
+    selectAudioMode: document.getElementById('select-audio-mode'),
+    btnP1Speak: document.getElementById('btn-p1-speak'),
+
     // Setup Controls
     selectMode: document.getElementById('select-mode'),
     selectLevel: document.getElementById('select-level'),
@@ -109,7 +119,7 @@ function cacheElements() {
     btnP1Next: document.getElementById('btn-p1-next'),
     btnP1SkipToRecall: document.getElementById('btn-p1-skip-recall'),
     
-    // Phase 2 (Active Recall - Clean Prompt Only)
+    // Phase 2 (Active Recall)
     p2CardEnglishPrompt: document.getElementById('p2-english-prompt'),
     p2Input: document.getElementById('p2-input'),
     btnP2Submit: document.getElementById('btn-p2-submit'),
@@ -141,6 +151,20 @@ function bindEvents() {
   elements.btnConnectStorage.addEventListener('click', handleStorageConnect);
   elements.btnResetProgress.addEventListener('click', handleResetProgress);
   
+  // Audio Toggle Handlers
+  elements.btnHeaderAudioToggle.addEventListener('click', toggleAudioMode);
+  if (elements.selectAudioMode) {
+    elements.selectAudioMode.addEventListener('change', (e) => {
+      setAudioMode(e.target.value === 'on');
+    });
+  }
+  if (elements.btnP1Speak) {
+    elements.btnP1Speak.addEventListener('click', () => {
+      const currentWordObj = state.session.words[state.session.currentIndex];
+      if (currentWordObj) speakGermanText(currentWordObj.target);
+    });
+  }
+
   // Setup inputs change
   elements.selectLevel.addEventListener('change', updatePointerBannerUI);
   elements.selectPos.addEventListener('change', updatePointerBannerUI);
@@ -166,12 +190,97 @@ function bindEvents() {
 }
 
 /* ==========================================
+   GERMAN SPEECH SYNTHESIS ENGINE (TTS)
+   ========================================== */
+
+function initTTSVoices() {
+  if (!('speechSynthesis' in window)) {
+    console.warn("Speech Synthesis is not supported in this browser.");
+    return;
+  }
+
+  const loadVoices = () => {
+    const voices = window.speechSynthesis.getVoices();
+    germanVoice = voices.find(v => v.lang.startsWith('de')) || null;
+  };
+
+  loadVoices();
+  if (window.speechSynthesis.onvoiceschanged !== undefined) {
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }
+}
+
+function speakGermanText(text) {
+  if (!text || !('speechSynthesis' in window)) return;
+  if (!state.config.autoPlayAudio && event?.type !== 'click') return;
+
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    if (germanVoice) {
+      utterance.voice = germanVoice;
+    }
+    utterance.lang = 'de-DE';
+    utterance.rate = 0.9;
+
+    if (elements.btnP1Speak) {
+      utterance.onstart = () => elements.btnP1Speak.classList.add('speaking');
+      utterance.onend = () => elements.btnP1Speak.classList.remove('speaking');
+      utterance.onerror = () => elements.btnP1Speak.classList.remove('speaking');
+    }
+
+    window.speechSynthesis.speak(utterance);
+  } catch (err) {
+    console.error("Speech Synthesis Error:", err);
+  }
+}
+
+function stopGermanSpeech() {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function toggleAudioMode() {
+  setAudioMode(!state.config.autoPlayAudio);
+}
+
+function setAudioMode(enabled) {
+  state.config.autoPlayAudio = enabled;
+  
+  if (enabled) {
+    elements.audioToggleIcon.textContent = '🔊';
+    elements.audioToggleText.textContent = 'Audio: ON';
+    elements.btnHeaderAudioToggle.classList.remove('audio-muted');
+    if (elements.selectAudioMode) elements.selectAudioMode.value = 'on';
+  } else {
+    elements.audioToggleIcon.textContent = '🔇';
+    elements.audioToggleText.textContent = 'Audio: OFF';
+    elements.btnHeaderAudioToggle.classList.add('audio-muted');
+    if (elements.selectAudioMode) elements.selectAudioMode.value = 'off';
+    stopGermanSpeech();
+  }
+}
+
+/* ==========================================
+   REPLAY LOG SESSION HELPER
+   ========================================== */
+
+window.repeatSessionFromLog = function(lvl, pos, mode, n) {
+  if (elements.selectLevel) elements.selectLevel.value = lvl;
+  if (elements.selectPos) elements.selectPos.value = pos;
+  if (elements.selectMode) elements.selectMode.value = mode;
+  if (elements.inputBatchSize) elements.inputBatchSize.value = n || 10;
+
+  updatePointerBannerUI();
+  handleStartSession();
+};
+
+/* ==========================================
    DATA ENGINE
    ========================================== */
 
-/**
- * Fetch static dictionary JSON and prepare session batch
- */
 async function getBatchForSession(mode, level, pos, count) {
   const filePath = `./output_data/${level}/${pos}.json`;
   
@@ -197,13 +306,11 @@ async function getBatchForSession(mode, level, pos, count) {
       const start = state.session.initialLastIndex % fullDataset.length;
       selectedItems = fullDataset.slice(start, start + count);
       
-      // Wrap around if requested count exceeds remaining array items
       if (selectedItems.length < count) {
         const remaining = count - selectedItems.length;
         selectedItems = selectedItems.concat(fullDataset.slice(0, remaining));
       }
     } else if (mode === 'revision') {
-      // Revision mode: Filter dataset against user_progress.json words matching level and pos
       const userWords = progress.words || {};
       const matchingDictionaryWords = fullDataset.filter(item => {
         const key = item.word || item.target;
@@ -336,7 +443,7 @@ function renderStatsOverview() {
     elements.statOverallAccuracy.textContent = `0%`;
   }
 
-  // Recent Sessions (Short List in Setup)
+  // Render recent 5 sessions with Repeat button
   if (elements.recentSessionsList) {
     if (sessions.length === 0) {
       elements.recentSessionsList.innerHTML = `<div class="empty-state">No recorded sessions yet. Start your first session above!</div>`;
@@ -348,12 +455,15 @@ function renderStatsOverview() {
           <div class="session-log-item">
             <div class="log-cell-main">
               <span class="badge-level-pos">${s.lvl} ${s.pos}</span>
-              <span class="log-mode-tag">${s.mode}</span>
+              <span class="log-mode-tag">${s.mode} (${s.n || 10})</span>
             </div>
             <div class="log-cell-metrics">
               <span><strong>${s.acc}%</strong> acc</span>
               <span><strong>${s.spd}s</strong>/word</span>
               <span class="log-date">${dateStr}</span>
+              <button onclick="window.repeatSessionFromLog('${s.lvl}', '${s.pos}', '${s.mode}', ${s.n || 10})" class="btn btn-secondary" style="padding:2px 8px; font-size:0.75rem;" title="Start session again with these settings">
+                ▶ Repeat
+              </button>
             </div>
           </div>
         `;
@@ -362,9 +472,6 @@ function renderStatsOverview() {
   }
 }
 
-/**
- * Render complete session history table in HISTORY view tab
- */
 function renderFullHistoryView() {
   const progress = getCachedProgress();
   const sessions = progress?.sessions || [];
@@ -374,7 +481,7 @@ function renderFullHistoryView() {
   if (sessions.length === 0) {
     elements.historyFullTableBody.innerHTML = `
       <tr>
-        <td colspan="7" class="empty-state">No historical sessions recorded yet in user_progress.json.</td>
+        <td colspan="8" class="empty-state">No historical sessions recorded yet in user_progress.json.</td>
       </tr>
     `;
     return;
@@ -401,6 +508,11 @@ function renderFullHistoryView() {
           </span>
         </td>
         <td>${s.spd || 0} s/word</td>
+        <td>
+          <button onclick="window.repeatSessionFromLog('${s.lvl}', '${s.pos}', '${s.mode}', ${s.n || 10})" class="btn btn-secondary" style="padding:4px 10px; font-size:0.8rem;" title="Replay this session">
+            ▶ Repeat
+          </button>
+        </td>
       </tr>
     `;
   }).join('');
@@ -412,6 +524,7 @@ function renderFullHistoryView() {
 
 function switchView(viewName) {
   state.currentView = viewName;
+  stopGermanSpeech();
   
   elements.viewSetup.classList.toggle('hidden', viewName !== 'SETUP');
   elements.viewPhase1.classList.toggle('hidden', viewName !== 'PHASE_1');
@@ -419,7 +532,6 @@ function switchView(viewName) {
   elements.viewSummary.classList.toggle('hidden', viewName !== 'SUMMARY');
   elements.viewHistory.classList.toggle('hidden', viewName !== 'HISTORY');
 
-  // Update Header Tabs
   elements.tabBtnTraining.classList.toggle('active', viewName === 'SETUP' || viewName === 'PHASE_1' || viewName === 'PHASE_2' || viewName === 'SUMMARY');
   elements.tabBtnHistory.classList.toggle('active', viewName === 'HISTORY');
 
@@ -438,6 +550,10 @@ async function handleStartSession() {
   state.config.batchSize = parseInt(elements.inputBatchSize.value, 10) || 10;
   state.config.previewTimeS = parseInt(elements.inputPreviewTime.value, 10) || 3;
   state.config.recallTimeM = parseInt(elements.inputRecallTime.value, 10) || 10;
+
+  if (elements.selectAudioMode) {
+    state.config.autoPlayAudio = (elements.selectAudioMode.value === 'on');
+  }
 
   const words = await getBatchForSession(
     state.config.mode,
@@ -484,6 +600,10 @@ function renderPhase1Word() {
   elements.p1ProgressText.textContent = `Word ${currentNum} of ${total}`;
   elements.p1ProgressBarInner.style.width = `${(currentNum / total) * 100}%`;
 
+  if (state.config.autoPlayAudio) {
+    speakGermanText(wordObj.target);
+  }
+
   const durationMs = state.config.previewTimeS * 1000;
   let elapsedMs = 0;
   const stepMs = 50;
@@ -520,6 +640,8 @@ function updatePhase1TimerVisual(fraction) {
 
 function navigatePhase1(direction) {
   clearInterval(state.session.phase1Timer);
+  stopGermanSpeech();
+
   const nextIdx = state.session.currentIndex + direction;
 
   if (nextIdx < 0) {
@@ -536,14 +658,17 @@ function navigatePhase1(direction) {
 function togglePhase1Pause() {
   state.session.isPaused = !state.session.isPaused;
   elements.btnP1Pause.textContent = state.session.isPaused ? 'Resume' : 'Pause';
+  if (state.session.isPaused) stopGermanSpeech();
 }
 
 /* ==========================================
-   PHASE 2: ACTIVE RECALL (NO EXAMPLES DISPLAYED)
+   PHASE 2: ACTIVE RECALL
    ========================================== */
 
 function transitionToPhase2() {
   clearInterval(state.session.phase1Timer);
+  stopGermanSpeech();
+
   state.session.currentIndex = 0;
   state.session.results = [];
   switchView('PHASE_2');
@@ -557,14 +682,12 @@ function renderPhase2Word() {
   const total = state.session.words.length;
   const currentNum = state.session.currentIndex + 1;
 
-  // Clear feedback & input
   elements.p2FeedbackBanner.className = 'feedback-banner hidden';
   elements.p2Input.value = '';
   elements.p2Input.disabled = false;
   elements.btnP2Submit.disabled = false;
   elements.p2Input.focus();
 
-  // Render Clean Prompt Only (No Examples)
   elements.p2CardEnglishPrompt.textContent = wordObj.english;
 
   elements.p2ProgressText.textContent = `Recall ${currentNum} of ${total}`;
@@ -637,6 +760,10 @@ function evaluatePhase2Answer(userRawInput) {
   elements.p2Input.disabled = true;
   elements.btnP2Submit.disabled = true;
 
+  if (state.config.autoPlayAudio) {
+    speakGermanText(wordObj.target);
+  }
+
   if (isCorrect) {
     elements.p2FeedbackBanner.className = 'feedback-banner feedback-correct';
     elements.p2FeedbackBanner.innerHTML = `
@@ -644,6 +771,9 @@ function evaluatePhase2Answer(userRawInput) {
       <div class="feedback-text">
         <strong>Correct!</strong> ${wordObj.target} (${(recallSpeedMs / 1000).toFixed(1)}s)
       </div>
+      <button onclick="window.speakGermanAudioTarget('${wordObj.target.replace(/'/g, "\\'")}')" class="btn-speaker" style="margin-left:auto; width:32px; height:32px;" title="Listen again">
+        🔊
+      </button>
     `;
   } else {
     elements.p2FeedbackBanner.className = 'feedback-banner feedback-incorrect';
@@ -653,6 +783,9 @@ function evaluatePhase2Answer(userRawInput) {
         <strong>Incorrect!</strong> Correct answer: <span class="correct-answer-text">${wordObj.target}</span>
         ${userRawInput ? `<span class="your-answer-text">(You typed: "${userRawInput}")</span>` : '<span class="your-answer-text">(Time Out)</span>'}
       </div>
+      <button onclick="window.speakGermanAudioTarget('${wordObj.target.replace(/'/g, "\\'")}')" class="btn-speaker" style="margin-left:auto; width:32px; height:32px;" title="Listen again">
+        🔊
+      </button>
     `;
   }
   elements.p2FeedbackBanner.classList.remove('hidden');
@@ -678,6 +811,10 @@ function evaluatePhase2Answer(userRawInput) {
     }
   }, 1500);
 }
+
+window.speakGermanAudioTarget = function(text) {
+  speakGermanText(text);
+};
 
 /* ==========================================
    SESSION SUMMARY & DISK PERSISTENCE
@@ -715,6 +852,7 @@ async function finishSessionAndShowSummary() {
         <td>#${i + 1}</td>
         <td>
           <strong class="target-word">${r.target}</strong>
+          <button onclick="window.speakGermanAudioTarget('${r.target.replace(/'/g, "\\'")}')" class="btn-speaker" style="width:26px; height:26px; margin-left:6px; font-size:0.75rem;" title="Listen">🔊</button>
           <div class="sub-english">${r.english}</div>
         </td>
         <td>

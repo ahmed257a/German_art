@@ -34,6 +34,12 @@
     </nav>
 
     <div class="storage-status-bar">
+      <!-- Audio Mute/Unmute Quick Toggle -->
+      <button id="btn-header-audio-toggle" class="btn-audio-toggle" title="Toggle German Pronunciation Auto-Play">
+        <span id="audio-toggle-icon">🔊</span>
+        <span id="audio-toggle-text">Audio: ON</span>
+      </button>
+
       <span id="storage-status-text" class="status-badge status-disconnected">
         Offline Local Mode
       </span>
@@ -115,6 +121,15 @@
             <label for="input-recall-time">Recall Sec (M)</label>
             <input type="number" id="input-recall-time" class="form-control" value="10" min="2" max="60">
           </div>
+
+          <!-- Auto Play German Audio -->
+          <div class="form-group">
+            <label for="select-audio-mode">German Audio Auto-Play</label>
+            <select id="select-audio-mode" class="form-control">
+              <option value="on" selected>Enabled (Auto Play)</option>
+              <option value="off">Disabled (Muted)</option>
+            </select>
+          </div>
         </div>
 
         <button id="btn-start-session" class="btn btn-full">
@@ -175,7 +190,14 @@
 
         <!-- Flashcard Content -->
         <div id="p1-card-level-pos" class="card-tag">A1 • NOUN</div>
-        <div id="p1-card-word" class="p1-target-word">das Buch</div>
+        
+        <div class="word-heading-row">
+          <div id="p1-card-word" class="p1-target-word">das Buch</div>
+          <button id="btn-p1-speak" class="btn-speaker" title="Listen to German Pronunciation">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+          </button>
+        </div>
+
         <div id="p1-card-translation" class="p1-translation">the book</div>
 
         <div class="example-box">
@@ -195,7 +217,7 @@
     </section>
 
     <!-- ==========================================
-         VIEW 3: PHASE 2 (ACTIVE RECALL - NO EXAMPLES)
+         VIEW 3: PHASE 2 (ACTIVE RECALL - CLEAN PROMPT)
          ========================================== -->
     <section id="view-phase2" class="view-panel hidden">
       <div class="flashcard-container" style="min-height:360px; justify-content:center;">
@@ -217,7 +239,7 @@
           </div>
         </div>
 
-        <!-- Prompt Content (Clean Prompt Only - No Examples) -->
+        <!-- Prompt Content -->
         <div class="card-tag">Translate to German</div>
         <div id="p2-english-prompt" class="p2-prompt-word">the book</div>
 
@@ -316,6 +338,7 @@
                 <th>Words (N)</th>
                 <th>Accuracy</th>
                 <th>Avg Speed</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="history-full-table-body">

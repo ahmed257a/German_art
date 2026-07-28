@@ -14,6 +14,7 @@ import {
   recordWordResults,
   appendSessionLog,
   getCachedProgress,
+  markWordsAsKnown,
 } from "./storage.js";
 
 // Application State
@@ -38,6 +39,9 @@ const state = {
     results: [],
     isPaused: false,
     initialLastIndex: 0,
+    nextFileIndex: 0,
+    replacementsMade: 0,
+    trackedWordCount: 0,
   },
 };
 
@@ -58,6 +62,7 @@ function cacheElements() {
   elements = {
     viewSetup: document.getElementById("view-setup"),
     viewReview: document.getElementById("view-review"),
+    viewRaw: document.getElementById("view-raw"),
     viewPhase1: document.getElementById("view-phase1"),
     viewPhase2: document.getElementById("view-phase2"),
     viewSummary: document.getElementById("view-summary"),
@@ -66,6 +71,7 @@ function cacheElements() {
     appHeader: document.getElementById("app-header"),
     tabBtnTraining: document.getElementById("tab-btn-training"),
     tabBtnReview: document.getElementById("tab-btn-review"),
+    tabBtnRaw: document.getElementById("tab-btn-raw"),
     tabBtnHistory: document.getElementById("tab-btn-history"),
     tabBtnStats: document.getElementById("tab-btn-stats"),
     btnConnectStorage: document.getElementById("btn-connect-storage"),
@@ -90,6 +96,9 @@ function cacheElements() {
     selectReviewPos: document.getElementById("select-review-pos"),
     selectReviewPriority: document.getElementById("select-review-priority"),
     inputReviewCount: document.getElementById("input-review-count"),
+    selectRawLevel: document.getElementById("select-raw-level"),
+    selectRawPos: document.getElementById("select-raw-pos"),
+    rawWordsContainer: document.getElementById("raw-words-container"),
     reviewPriorityContainer: document.getElementById(
       "review-priority-container",
     ),
@@ -112,6 +121,7 @@ function cacheElements() {
     btnP1Prev: document.getElementById("btn-p1-prev"),
     btnP1Pause: document.getElementById("btn-p1-pause"),
     btnP1Next: document.getElementById("btn-p1-next"),
+    btnP1MarkKnown: document.getElementById("btn-p1-mark-known"),
     btnP1SkipToRecall: document.getElementById("btn-p1-skip-recall"),
     p2CardEnglishPrompt: document.getElementById("p2-english-prompt"),
     p2Input: document.getElementById("p2-input"),
@@ -134,6 +144,7 @@ function cacheElements() {
 function bindEvents() {
   elements.tabBtnTraining.addEventListener("click", () => switchView("SETUP"));
   elements.tabBtnReview.addEventListener("click", () => switchView("REVIEW"));
+  elements.tabBtnRaw.addEventListener("click", () => switchView("RAW"));
   elements.tabBtnHistory.addEventListener("click", () => switchView("HISTORY"));
   elements.tabBtnStats.addEventListener("click", () => switchView("STATS"));
   elements.btnViewAllHistory.addEventListener("click", () =>
@@ -178,9 +189,16 @@ function bindEvents() {
     elements.selectReviewPos.addEventListener("change", renderReviewView);
   if (elements.selectReviewPriority)
     elements.selectReviewPriority.addEventListener("change", renderReviewView);
+  if (elements.selectRawLevel)
+    elements.selectRawLevel.addEventListener("change", renderRawView);
+  if (elements.selectRawPos)
+    elements.selectRawPos.addEventListener("change", renderRawView);
   elements.btnP1Prev.addEventListener("click", () => navigatePhase1(-1));
   elements.btnP1Next.addEventListener("click", () => navigatePhase1(1));
   elements.btnP1Pause.addEventListener("click", togglePhase1Pause);
+  if (elements.btnP1MarkKnown) {
+    elements.btnP1MarkKnown.addEventListener("click", handleMarkCurrentWordKnown);
+  }
   elements.btnP1SkipToRecall.addEventListener("click", transitionToPhase2);
   elements.btnP2Submit.addEventListener("click", submitPhase2Answer);
   elements.p2Input.addEventListener("keypress", (e) => {
@@ -457,6 +475,69 @@ async function updatePointerBannerUI() {
   elements.pointerBannerText.textContent = `Word pointer: ${lastIndex} in ${level}/${pos}.json`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function renderRawView() {
+  if (!elements.rawWordsContainer) return;
+
+  const level = elements.selectRawLevel?.value || "A1";
+  const pos = elements.selectRawPos?.value || "noun";
+  if (elements.selectRawLevel) elements.selectRawLevel.value = level;
+  if (elements.selectRawPos) elements.selectRawPos.value = pos;
+
+  elements.rawWordsContainer.innerHTML = '<div class="empty-state">Loading words…</div>';
+
+  try {
+    const response = await fetch(`./output_data/${level}/${pos}.json`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      elements.rawWordsContainer.innerHTML = `<div class="empty-state">No words found in ${escapeHtml(level)}/${escapeHtml(pos)}.json.</div>`;
+      return;
+    }
+
+    elements.rawWordsContainer.innerHTML = `
+      <div class="raw-summary-bar">
+        <span class="raw-summary-pill">${data.length} words</span>
+        <span class="raw-summary-pill">${escapeHtml(level)} · ${escapeHtml(pos)}</span>
+      </div>
+      <div class="raw-word-list">
+        ${data
+          .map((item, index) => {
+            const word = item.word || item.target || "";
+            const target = item.target || (item.article ? `${item.article} ${word}` : word);
+            const translation = item.english_translation || item.english || "—";
+            const articleMarkup = item.article
+              ? `<span class="raw-word-article">${escapeHtml(item.article)}</span>`
+              : "";
+
+            return `
+              <div class="raw-word-item">
+                <div class="raw-word-main">
+                  <span class="raw-word-index">${index + 1}</span>
+                  <span class="raw-word-text">${escapeHtml(target)}</span>
+                  <span class="raw-word-translation">${escapeHtml(translation)}</span>
+                </div>
+                ${articleMarkup}
+              </div>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+  } catch (err) {
+    elements.rawWordsContainer.innerHTML = `<div class="empty-state">Could not load ${escapeHtml(level)}/${escapeHtml(pos)}.json: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
 function renderReviewView() {
   if (!elements.reviewPriorityContainer) return;
 
@@ -467,6 +548,20 @@ function renderReviewView() {
 
   const progress = getCachedProgress();
   const words = progress?.words || {};
+
+  const knownWords = Object.entries(words)
+    .filter(
+      ([wordKey, record]) =>
+        record &&
+        record.level === level &&
+        record.pos === pos &&
+        (record.isKnown || record.status === "learnt"),
+    )
+    .map(([wordKey, record]) => ({
+      word: wordKey,
+      ...record,
+    }))
+    .sort((a, b) => a.word.localeCompare(b.word));
 
   const reviewedWords = Object.entries(words)
     .filter(
@@ -522,7 +617,7 @@ function renderReviewView() {
     },
   };
 
-  elements.reviewPriorityContainer.innerHTML = ["urgent", "medium", "low"]
+  const reviewCardsMarkup = ["urgent", "medium", "low"]
     .map((priority) => {
       const items = grouped[priority];
       const meta = priorityMeta[priority];
@@ -559,6 +654,33 @@ function renderReviewView() {
       </div>`;
     })
     .join("");
+
+  const knownWordsMarkup = `
+    <div class="review-known-card">
+      <div class="review-card-header">
+        <div class="review-card-title">Known Words</div>
+        <div class="review-card-count">${knownWords.length} words</div>
+      </div>
+      <div class="review-card-desc">Words you marked as known stay tracked and skip recall.</div>
+      <div class="review-known-list">
+        ${
+          knownWords.length > 0
+            ? knownWords
+                .map(
+                  (item) => `
+                <div class="review-known-item">
+                  <div class="review-known-word">${escapeHtml(item.word)}</div>
+                  <div class="review-known-meta">${escapeHtml(item.level)} · ${escapeHtml(item.pos)}</div>
+                </div>
+              `,
+                )
+                .join("")
+            : '<div class="review-empty-state">No known words yet.</div>'
+        }
+      </div>
+    </div>`;
+
+  elements.reviewPriorityContainer.innerHTML = `${reviewCardsMarkup}${knownWordsMarkup}`;
 }
 
 function renderStatsOverview() {
@@ -848,6 +970,7 @@ function switchView(viewName) {
 
   elements.viewSetup.classList.toggle("hidden", viewName !== "SETUP");
   elements.viewReview.classList.toggle("hidden", viewName !== "REVIEW");
+  elements.viewRaw.classList.toggle("hidden", viewName !== "RAW");
   elements.viewPhase1.classList.toggle("hidden", viewName !== "PHASE_1");
   elements.viewPhase2.classList.toggle("hidden", viewName !== "PHASE_2");
   elements.viewSummary.classList.toggle("hidden", viewName !== "SUMMARY");
@@ -859,6 +982,7 @@ function switchView(viewName) {
     ["SETUP", "PHASE_1", "PHASE_2", "SUMMARY"].includes(viewName),
   );
   elements.tabBtnReview.classList.toggle("active", viewName === "REVIEW");
+  elements.tabBtnRaw.classList.toggle("active", viewName === "RAW");
   elements.tabBtnHistory.classList.toggle("active", viewName === "HISTORY");
   elements.tabBtnStats.classList.toggle("active", viewName === "STATS");
 
@@ -866,6 +990,7 @@ function switchView(viewName) {
     renderStatsOverview();
     updatePointerBannerUI();
   } else if (viewName === "REVIEW") renderReviewView();
+  else if (viewName === "RAW") renderRawView();
   else if (viewName === "HISTORY") renderFullHistoryView();
   else if (viewName === "STATS") renderDetailedStatsView();
 }
@@ -896,6 +1021,9 @@ async function handleStartSession() {
   state.session.currentIndex = 0;
   state.session.results = [];
   state.session.isPaused = false;
+  state.session.replacementsMade = 0;
+  state.session.trackedWordCount = state.config.batchSize;
+  state.session.nextFileIndex = state.session.initialLastIndex + state.config.batchSize;
   startPhase1();
 }
 
@@ -932,6 +1060,9 @@ async function handleStartReviewSession() {
   state.session.currentIndex = 0;
   state.session.results = [];
   state.session.isPaused = false;
+  state.session.replacementsMade = 0;
+  state.session.trackedWordCount = count;
+  state.session.nextFileIndex = state.session.initialLastIndex + count;
   startPhase1();
 }
 
@@ -942,6 +1073,82 @@ async function handleStartReviewSession() {
 function startPhase1() {
   switchView("PHASE_1");
   renderPhase1Word();
+}
+
+async function getReplacementWord(level, pos, startIndex) {
+  try {
+    const response = await fetch(`./output_data/${level}/${pos}.json`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const fullDataset = await response.json();
+    if (!Array.isArray(fullDataset) || fullDataset.length === 0) return null;
+    const safeIndex = Math.max(0, startIndex % fullDataset.length);
+    const item = fullDataset[safeIndex];
+    if (!item) return null;
+    const targetStr =
+      item.target ||
+      (item.article ? `${item.article} ${item.word}` : item.word);
+    return {
+      id: `${level}_${pos}_${safeIndex}_${item.word}`,
+      word: item.word,
+      target: targetStr,
+      english: item.english_translation || item.english || "",
+      example_sentence_native: item.example_sentence_native || "",
+      example_sentence_english: item.example_sentence_english || "",
+      level,
+      pos,
+      article: item.article || "",
+    };
+  } catch (err) {
+    console.error("Could not load replacement word:", err);
+    return null;
+  }
+}
+
+async function handleMarkCurrentWordKnown() {
+  const currentWord = state.session.words[state.session.currentIndex];
+  if (!currentWord) return;
+
+  const replacementWord = await getReplacementWord(
+    state.config.level,
+    state.config.pos,
+    state.session.nextFileIndex,
+  );
+
+  try {
+    await markWordsAsKnown([
+      {
+        word: currentWord.word,
+        level: currentWord.level,
+        pos: currentWord.pos,
+      },
+    ]);
+  } catch (err) {
+    console.error(err);
+  }
+
+  state.session.words.splice(state.session.currentIndex, 1);
+  if (replacementWord) {
+    state.session.words.splice(state.session.currentIndex, 0, replacementWord);
+    state.session.nextFileIndex += 1;
+    state.session.replacementsMade += 1;
+    state.session.trackedWordCount =
+      state.config.batchSize + state.session.replacementsMade;
+  }
+
+  if (state.session.currentIndex >= state.session.words.length) {
+    state.session.currentIndex = Math.max(0, state.session.words.length - 1);
+  }
+
+  if (state.session.words.length === 0) {
+    finishSessionAndShowSummary();
+    return;
+  }
+
+  if (state.session.currentIndex >= state.session.words.length - 1) {
+    transitionToPhase2();
+  } else {
+    renderPhase1Word();
+  }
 }
 
 function renderPhase1Word() {
@@ -1014,6 +1221,10 @@ function togglePhase1Pause() {
 function transitionToPhase2() {
   clearInterval(state.session.phase1Timer);
   stopGermanSpeech();
+  if (state.session.words.length === 0) {
+    finishSessionAndShowSummary();
+    return;
+  }
   state.session.currentIndex = 0;
   state.session.results = [];
   switchView("PHASE_2");
@@ -1023,6 +1234,10 @@ function transitionToPhase2() {
 function renderPhase2Word() {
   clearInterval(state.session.phase2Timer);
   const wordObj = state.session.words[state.session.currentIndex];
+  if (!wordObj) {
+    finishSessionAndShowSummary();
+    return;
+  }
   const total = state.session.words.length;
   const currentNum = state.session.currentIndex + 1;
 
@@ -1180,9 +1395,13 @@ async function finishSessionAndShowSummary() {
 
   try {
     if (state.config.mode === "new") {
+      const trackedCount = Math.max(
+        state.session.trackedWordCount || state.config.batchSize,
+        total + state.session.replacementsMade,
+      );
       await updatePointer(
         `${state.config.level}_${state.config.pos}`,
-        state.session.initialLastIndex + total,
+        state.session.initialLastIndex + trackedCount,
       );
     }
     await recordWordResults(results);

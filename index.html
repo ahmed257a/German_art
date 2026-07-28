@@ -76,6 +76,22 @@
           </svg>
           Review
         </button>
+        <button id="tab-btn-raw" class="nav-tab">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M7 3h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+            <path d="M14 3v5h5" />
+            <path d="M9 13h6" />
+            <path d="M9 17h6" />
+          </svg>
+          Raw
+        </button>
         <button id="tab-btn-stats" class="nav-tab">
           <svg
             width="15"
@@ -394,6 +410,7 @@
           <div class="p1-controls">
             <button id="btn-p1-prev" class="btn btn-secondary">◀ Prev</button>
             <button id="btn-p1-pause" class="btn btn-secondary">⏸ Pause</button>
+            <button id="btn-p1-mark-known" class="btn btn-secondary">✓ Mark Known</button>
             <button id="btn-p1-next" class="btn btn-secondary">Next ▶</button>
             <button
               id="btn-p1-skip-recall"
@@ -572,7 +589,46 @@
         </div>
       </section>
 
-      <!-- VIEW 6: STATISTICS TAB -->
+      <!-- VIEW 6: RAW DATA EXPLORER -->
+      <section id="view-raw" class="view-panel hidden">
+        <div class="summary-card">
+          <div class="raw-header-row">
+            <div>
+              <h1 style="font-size: 1.6rem; font-weight: 700">Raw Vocabulary View</h1>
+              <p style="color: var(--text-secondary); font-size: 0.9rem">
+                Browse the full contents of a selected file from the output_data folder.
+              </p>
+            </div>
+            <div class="raw-controls">
+              <div class="form-group" style="min-width: 150px">
+                <label for="select-raw-level">Level</label>
+                <select id="select-raw-level" class="form-control">
+                  <option value="A1">A1</option>
+                  <option value="A2">A2</option>
+                  <option value="B1">B1</option>
+                  <option value="B2">B2</option>
+                  <option value="C1">C1</option>
+                  <option value="C2">C2</option>
+                </select>
+              </div>
+              <div class="form-group" style="min-width: 150px">
+                <label for="select-raw-pos">Part of Speech</label>
+                <select id="select-raw-pos" class="form-control">
+                  <option value="noun">🔵 Nouns</option>
+                  <option value="verb">🟣 Verbs</option>
+                  <option value="adjective">🟡 Adjectives</option>
+                  <option value="adverb">🟠 Adverbs</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div id="raw-words-container" class="raw-list">
+            <div class="empty-state">Select a file to inspect its words.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 7: STATISTICS TAB -->
       <section id="view-stats" class="view-panel hidden">
         <!-- Rendered dynamically by renderDetailedStatsView() -->
       </section>

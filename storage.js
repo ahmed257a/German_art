@@ -239,6 +239,36 @@ export async function appendSessionLog(sessionSummary) {
   return currentProgress.sessions;
 }
 
+export async function markWordsAsKnown(wordsToMark) {
+  if (!currentProgress) await loadProgress();
+  if (!currentProgress.words) currentProgress.words = {};
+
+  const now = new Date().toISOString();
+  for (const item of wordsToMark) {
+    const key = item.word || item.target;
+    if (!key) continue;
+
+    const existing = currentProgress.words[key] || {
+      status: "review",
+      level: item.level,
+      pos: item.pos,
+      timesReviewed: 0,
+      timesCorrect: 0,
+      lastReviewedAt: now,
+    };
+
+    existing.status = "learnt";
+    existing.isKnown = true;
+    existing.level = item.level || existing.level;
+    existing.pos = item.pos || existing.pos;
+    existing.lastReviewedAt = now;
+    currentProgress.words[key] = existing;
+  }
+
+  await saveProgress(currentProgress);
+  return currentProgress.words;
+}
+
 export function getCachedProgress() {
   if (!currentProgress) {
     loadFallbackStorage();
